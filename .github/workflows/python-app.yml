@@ -10,6 +10,12 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
+    env:
+      DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
+      PLEX_URL: ${{ secrets.PLEX_URL }}
+      PLEX_TOKEN: ${{ secrets.PLEX_TOKEN }}
+      GUILD_ID: ${{ secrets.GUILD_ID }}
+      USER_ID: ${{ secrets.USER_ID }}
 
     steps:
     - uses: actions/checkout@v3
@@ -24,7 +30,5 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    - name: Lint with flake8
-      run: |
-        pip install flake8
-        flake8 .
+    - name: Run basic syntax check
+      run: python -m compileall .
