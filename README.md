@@ -4,11 +4,14 @@ A Discord Plex bot that allows users to check if a movie currently exists in you
 
 ## Project Structure
 discord-plex-bot/
-├── bot.py # Main Discord bot logic
-├── plex_utils.py # Utility functions for interacting with Plex
-├── .env # Environment variables (not committed to source control)
-├── requirements.txt # Python dependencies
-└── README.md # Project documentation
+├── .github/
+│   └── workflows/
+│       └── python-app.yml
+├── bot.py
+├── plex_utils.py
+├── .env
+├── requirements.txt
+└── README.md
 
 ## Features
 - `/query <movie_name>` - Check if a movie exists in your Plex library.
