@@ -3,6 +3,7 @@
 A Discord Plex bot that allows users to check if a movie currently exists in your Plex Server. If the movie does not exist, the user can then request that movie. The bot uses slash commands for interaction and can notify the Plex owner when a request is made.
 
 ## Project Structure
+```plaintext
 discord-plex-bot/
 ├── .github/
 │   └── workflows/
@@ -12,6 +13,7 @@ discord-plex-bot/
 ├── .env
 ├── requirements.txt
 └── README.md
+```
 
 ## Features
 - `/query <movie_name>` - Check if a movie exists in your Plex library.
@@ -31,11 +33,13 @@ pip install -r requirements.txt
 ### 3. Create a .env file
 Create a .env file in the root directory with the following:
 
+```env
 DISCORD_TOKEN=your_discord_bot_token
 GUILD_ID=your_discord_guild_id
 USER_ID=your_discord_user_id_for_notifications
 PLEX_URL=http://your.plex.server:32400
 PLEX_TOKEN=your_plex_api_token
+```
 
 ### 4. Run the bot
 python bot.py
