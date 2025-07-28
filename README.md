@@ -24,11 +24,16 @@ discord-plex-bot/
 
 ### 1. Clone the repo
 
+```bash
 git clone https://github.com/alexcelenza/discord-plex-bot.git
 cd discord-plex-bot
+```
 
 ### 2. Install Dependencies
+
+```bash
 pip install -r requirements.txt
+```
 
 ### 3. Create a .env file
 Create a .env file in the root directory with the following:
