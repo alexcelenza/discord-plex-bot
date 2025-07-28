@@ -47,4 +47,6 @@ PLEX_TOKEN=your_plex_api_token
 ```
 
 ### 4. Run the bot
+```bash
 python bot.py
+```
