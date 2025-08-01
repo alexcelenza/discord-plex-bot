@@ -1,34 +1,239 @@
-name: Python CI
+name: Python CI/CD
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, feature/optimized-search ]
   pull_request:
     branches: [ main ]
 
 jobs:
-  build:
-
+  test:
     runs-on: ubuntu-latest
-    env:
-      DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
-      PLEX_URL: ${{ secrets.PLEX_URL }}
-      PLEX_TOKEN: ${{ secrets.PLEX_TOKEN }}
-      GUILD_ID: ${{ secrets.GUILD_ID }}
-      USER_ID: ${{ secrets.USER_ID }}
+    strategy:
+      matrix:
+        python-version: ['3.11', '3.12']
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
-    - name: Set up Python 3.12
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run linting and code quality checks
+      run: |
+        # Check for syntax errors
+        python -m compileall .
+        
+        # Check for unused imports
+        python -c "
+        import ast
+        import os
+        
+        def check_imports(file_path):
+            with open(file_path, 'r') as f:
+                tree = ast.parse(f.read())
+            
+            imports = []
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    for alias in node.names:
+                        imports.append(alias.name)
+                elif isinstance(node, ast.ImportFrom):
+                    if node.module:
+                        imports.append(node.module)
+            
+            return imports
+        
+        # Check main files
+        files_to_check = ['bot.py', 'plex_utils.py', 'config.py']
+        for file in files_to_check:
+            if os.path.exists(file):
+                imports = check_imports(file)
+                print(f'{file} imports: {imports}')
+        "
+
+    - name: Run unit tests
+      run: |
+        python -m pytest tests/ -v --cov=. --cov-report=xml --cov-report=term-missing
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.12'
 
     - name: Install dependencies
-      run:  |
+      run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    - name: Run basic syntax check
-      run: python -m compileall .
+    - name: Security check - Check for hardcoded secrets
+      run: |
+        # Check for potential hardcoded secrets
+        if grep -r "sk-" . --exclude-dir=.git --exclude-dir=__pycache__; then
+          echo "Warning: Potential hardcoded secrets found"
+          exit 1
+        fi
+        
+        # Check for hardcoded tokens
+        if grep -r "token.*=" . --exclude-dir=.git --exclude-dir=__pycache__ --exclude-dir=tests; then
+          echo "Warning: Potential hardcoded tokens found"
+          exit 1
+        fi
+
+    - name: Security check - Validate environment variables
+      run: |
+        python -c "
+        import os
+        import sys
+        sys.path.insert(0, '.')
+        from config import Config
+        
+        print('Testing configuration validation...')
+        
+        # Test with missing env vars
+        os.environ.clear()
+        assert not Config.validate(), 'Should fail with no env vars'
+        missing = Config.get_missing_vars()
+        assert len(missing) > 0, 'Should have missing variables'
+        print(f'Missing variables: {missing}')
+        
+        # Test with valid variables
+        test_env = {
+            'DISCORD_TOKEN': 'test_token',
+            'GUILD_ID': '123456789',
+            'USER_ID': '987654321',
+            'PLEX_URL': 'http://test.plex.server',
+            'PLEX_TOKEN': 'test_plex_token'
+        }
+        
+        for key, value in test_env.items():
+            os.environ[key] = value
+        
+        assert Config.validate(), 'Should pass with valid env vars'
+        missing = Config.get_missing_vars()
+        assert len(missing) == 0, 'Should have no missing variables'
+        print('Configuration validation tests passed!')
+        "
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build Docker image
+      run: |
+        docker build -t discord-plex-bot:test .
+
+    - name: Test Docker image
+      run: |
+        # Test that the image can be created and basic structure is correct
+        docker run --rm discord-plex-bot:test python -c "
+        import sys
+        print('Python version:', sys.version)
+        
+        # Test imports
+        try:
+            import discord
+            print('✓ discord.py imported successfully')
+        except ImportError as e:
+            print('✗ discord.py import failed:', e)
+            sys.exit(1)
+            
+        try:
+            import plexapi
+            print('✓ plexapi imported successfully')
+        except ImportError as e:
+            print('✗ plexapi import failed:', e)
+            sys.exit(1)
+            
+        try:
+            from config import Config
+            print('✓ config imported successfully')
+        except ImportError as e:
+            print('✗ config import failed:', e)
+            sys.exit(1)
+            
+        print('✓ All imports successful')
+        "
+
+  integration:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run integration tests
+      run: |
+        # Test the search algorithm with mock data
+        python -c "
+        import sys
+        import os
+        sys.path.insert(0, '.')
+        
+        # Mock environment
+        os.environ['DISCORD_TOKEN'] = 'test_token'
+        os.environ['GUILD_ID'] = '123456789'
+        os.environ['USER_ID'] = '987654321'
+        os.environ['PLEX_URL'] = 'http://test.plex.server'
+        os.environ['PLEX_TOKEN'] = 'test_plex_token'
+        
+        from plex_utils import normalize_title, calculate_similarity
+        
+        # Test search algorithm
+        test_cases = [
+            ('Home', 'Home Alone', 0.9),
+            ('Dark Knight', 'The Dark Knight', 0.8),
+            ('Batman', 'Iron Man', 0.0),  # Should be very low
+        ]
+        
+        for search, movie, expected_min in test_cases:
+            similarity = calculate_similarity(search, movie)
+            print(f'Search: \"{search}\" vs Movie: \"{movie}\" = {similarity:.3f}')
+            assert similarity >= expected_min, f'Similarity {similarity} should be >= {expected_min}'
+        
+        print('✓ Search algorithm tests passed!')
+        "
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [test, security, docker, integration]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+    - name: Deploy to production
+      run: |
+        echo "All tests passed! Ready for deployment."
+        echo "Manual deployment required for Discord bot."

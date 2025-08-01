@@ -10,6 +10,7 @@ discord-plex-bot/
 │       └── python-app.yml
 ├── bot.py
 ├── plex_utils.py
+├── config.py 
 ├── .env
 ├── requirements.txt
 └── README.md
